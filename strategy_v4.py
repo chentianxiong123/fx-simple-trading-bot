@@ -17,6 +17,7 @@ PAIR = 'EUR/USD'
 MARGIN = 500
 LEVERAGE = 20
 TAKE_PROFIT_PCT = 0.01   # +1% 就卖
+TIME_LIMIT_S = 15        # 15 秒时间兜底
 SCAN_INTERVAL = 1
 MOOMENTUM_WINDOW = 3
 MAX_POSITIONS = 5        # 最多 5 个仓位
@@ -34,13 +35,20 @@ def get_total_pnl(bot, positions):
 
 
 def check_tp(bot, positions):
-    """检查是否有仓位达到 TP，返回 (position, pnl_pct, index) 或 (None, None, None)"""
+    """检查是否有仓位达到 TP 或时间兜底，返回 (position, pnl_pct, index, reason)"""
+    now = time.time()
     for i, pos in enumerate(positions):
         curr = bot.state()['prices'][pos['pair']]
         pnl_pct = (pos['notional'] * pos['side'] * (curr / pos['entry'] - 1)) / pos['margin']
+        
+        # 时间兜底：从开仓时间算
+        if pos.get('opened_at') and (now - pos['opened_at']) >= TIME_LIMIT_S:
+            return pos, pnl_pct, i, 'TIME'
+        
+        # TP
         if pnl_pct >= TAKE_PROFIT_PCT:
-            return pos, pnl_pct, i
-    return None, None, None
+            return pos, pnl_pct, i, 'TP'
+    return None, None, None, None
 
 
 def run():
@@ -62,6 +70,7 @@ def run():
     closed_log = []
     last_scan = 0
     open_count = 0
+    position_times = {}  # track opened_at for each position index
     
     start = time.time()
     last_tick = 0
@@ -76,15 +85,33 @@ def run():
             last_tick = info['last_tick_ms']
             now = time.time()
             
-            # 1. 检查 TP
+            # 1. 检查 TP 或时间兜底
             positions = get_positions(bot)
-            pos_to_close, pnl_pct, close_index = check_tp(bot, positions)
+            # 给 positions 添加 opened_at
+            for i, pos in enumerate(positions):
+                if i in position_times:
+                    pos['opened_at'] = position_times[i]
+            
+            pos_to_close, pnl_pct, close_index, reason = check_tp(bot, positions)
             if pos_to_close:
-                print(f"\n⏹ TP {pnl_pct*100:+.2f}% (index={close_index})")
+                if reason == 'TIME':
+                    print(f"\n⏹ TIME 兜底 {pnl_pct*100:+.2f}% (index={close_index}, {TIME_LIMIT_S}s)")
+                else:
+                    print(f"\n⏹ TP {pnl_pct*100:+.2f}% (index={close_index})")
                 ok, pnl = close_position(bot, PAIR, close_index)
                 if ok:
-                    closed_log.append({'pair': PAIR, 'pnl': pnl, 'reason': f'TP({pnl_pct*100:+.2f}%)'})
+                    closed_log.append({'pair': PAIR, 'pnl': pnl, 'reason': reason})
                     print(f"   pnl=${pnl:+.2f}")
+                    # 清理 position_times
+                    del position_times[close_index]
+                    # 重新索引
+                    new_times = {}
+                    for idx, t in position_times.items():
+                        if idx > close_index:
+                            new_times[idx - 1] = t
+                        else:
+                            new_times[idx] = t
+                    position_times = new_times
                 # 关闭后重新获取
                 positions = get_positions(bot)
             
@@ -104,6 +131,9 @@ def run():
                         ok, entry = open_position(bot, PAIR, side, MARGIN, LEVERAGE)
                         if ok:
                             open_count += 1
+                            # 跟踪这个仓位的时间
+                            new_positions = get_positions(bot)
+                            position_times[len(new_positions) - 1] = time.time()
                             print(f"   ✓ @ {entry:.5f}")
                         else:
                             print(f"   ⚠ 失败")
