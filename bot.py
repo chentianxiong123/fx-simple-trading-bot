@@ -189,7 +189,7 @@ class FXBot:
     def select_pair(self, pair_id):
         self.frame.evaluate(r"""(id) => {
             const btn = Array.from(document.querySelectorAll('button'))
-                .find(b => b.textContent.includes(id.replace('/', ' / ')));
+                .find(b => b.textContent.includes(id) && !b.textContent.includes('保证金'));
             if (btn) btn.click();
         }""", pair_id)
     
@@ -268,6 +268,52 @@ class FXBot:
                 on_dom(state)
             
             time.sleep(interval)
+    
+    def reset(self):
+        """重置账户: 清空所有仓位, 现金回到 $10000"""
+        # 反复关仓位直到关完
+        for _ in range(10):
+            positions = self.frame.evaluate(r"""
+                () => JSON.parse(localStorage.getItem('fx-heartbeat-save-v3'))
+                            .accounts.sim.positions.length
+            """)
+            if positions == 0:
+                break
+            self.frame.evaluate(r"""() => {
+                const btns = Array.from(document.querySelectorAll('button'))
+                    .filter(b => b.textContent.trim() === '平仓');
+                if (btns.length) btns[0].click();
+            }""")
+            time.sleep(0.4)
+            self.frame.evaluate(r"""() => {
+                const c = document.getElementById('modalConfirm');
+                if (c && c.offsetParent !== null) c.click();
+            }""")
+            time.sleep(0.3)
+        
+        # 现金回 $10000
+        self.frame.evaluate(r"""() => {
+            const s = JSON.parse(localStorage.getItem('fx-heartbeat-save-v3'));
+            s.accounts.sim = {
+                cash: 10000, debt: 0, loanPrincipal: 0, loanRate: 0,
+                simLoanTicks: 0, positions: [], history: [], pair: 'EUR/USD',
+                leverage: 20, margin: 500, feesPaid: 0,
+                equityTrail: [], realProgress: {}, realRangeKey: null, realRange: null
+            };
+            localStorage.setItem('fx-heartbeat-save-v3', JSON.stringify(s));
+        }""")
+        time.sleep(0.3)
+        self.page.reload(wait_until='domcontentloaded')
+        time.sleep(3)
+        # 重装 hook
+        for f in self.page.frames:
+            try:
+                if f.evaluate("() => !!localStorage.getItem('fx-heartbeat-save-v3')"):
+                    self.frame = f
+                    break
+            except: pass
+        self.frame.evaluate(INSTALL_HOOK_JS)
+        time.sleep(2)
     
     def close(self):
         self.browser.close()
