@@ -23,6 +23,7 @@ MOOMENTUM_WINDOW = 3
 MAX_POSITIONS = 5        # 最多 5 个仓位
 
 # 总浮亏熔断：总浮动亏损超过账户 X% 就全部平仓 + 冷却
+ENABLE_BREAKER = False    # 熔断开关（False = 纯 15 秒）
 MAX_DRAWDOWN_PCT = 0.03  # 总浮亏超过账户 3%
 COOLDOWN_S = 60          # 熔断后冷却 60 秒
 
@@ -133,7 +134,7 @@ def run():
                 positions = get_positions(bot)
             
             # 2. 总浮亏熔断检查（每 tick 检查，优先级最高）
-            if len(positions) > 0 and now >= cooldown_until:
+            if ENABLE_BREAKER and len(positions) > 0 and now >= cooldown_until:
                 float_pnl = get_total_floating_pnl(bot, positions)
                 if float_pnl <= -initial_cash * MAX_DRAWDOWN_PCT:
                     breaker_count += 1
