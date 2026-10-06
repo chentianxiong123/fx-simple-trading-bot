@@ -22,6 +22,21 @@ SCAN_INTERVAL = 1
 MOOMENTUM_WINDOW = 3
 MAX_POSITIONS = 5        # 最多 5 个仓位
 
+# 总浮亏熔断：总浮动亏损超过账户 X% 就全部平仓 + 冷却
+MAX_DRAWDOWN_PCT = 0.03  # 总浮亏超过账户 3%
+COOLDOWN_S = 60          # 熔断后冷却 60 秒
+
+
+def get_total_floating_pnl(bot, positions):
+    """计算所有仓位的总浮动盈亏（美元）"""
+    s = bot.state()
+    total = 0
+    for pos in positions:
+        curr = s['prices'][pos['pair']]
+        pnl = pos['notional'] * pos['side'] * (curr / pos['entry'] - 1)
+        total += pnl
+    return total
+
 
 def get_total_pnl(bot, positions):
     """计算所有仓位的总 PnL"""
@@ -71,6 +86,8 @@ def run():
     last_scan = 0
     open_count = 0
     position_times = {}  # track opened_at for each position index
+    cooldown_until = 0   # 熔断冷却到什么时候
+    breaker_count = 0    # 熔断次数
     
     start = time.time()
     last_tick = 0
@@ -115,9 +132,24 @@ def run():
                 # 关闭后重新获取
                 positions = get_positions(bot)
             
-            # 2. 检查开仓
+            # 2. 总浮亏熔断检查（每 tick 检查，优先级最高）
+            if len(positions) > 0 and now >= cooldown_until:
+                float_pnl = get_total_floating_pnl(bot, positions)
+                if float_pnl <= -initial_cash * MAX_DRAWDOWN_PCT:
+                    breaker_count += 1
+                    cooldown_until = now + COOLDOWN_S
+                    print(f"\n🔴 熔断! 总浮亏=${float_pnl:.2f} (>{MAX_DRAWDOWN_PCT*100:.0f}%), 全部平仓 + 冷却{COOLDOWN_S}s")
+                    for idx in sorted(position_times.keys(), reverse=True):
+                        ok, pnl = close_position(bot, PAIR, idx)
+                        if ok:
+                            closed_log.append({'pair': PAIR, 'pnl': pnl, 'reason': 'BREAKER'})
+                            print(f"   ⏹ 强平 index={idx} pnl=${pnl:+.2f}")
+                    position_times = {}
+                    positions = get_positions(bot)
+                    
+            # 3. 检查开仓
             if now - last_scan >= SCAN_INTERVAL:
-                if len(positions) < MAX_POSITIONS:
+                if len(positions) < MAX_POSITIONS and now >= cooldown_until:
                     last_scan = now
                     
                     # 检查动量
@@ -138,7 +170,7 @@ def run():
                         else:
                             print(f"   ⚠ 失败")
             
-            # 3. 状态
+            # 4. 状态
             if now - last_stats >= 30:
                 last_stats = now
                 positions = get_positions(bot)
@@ -180,6 +212,7 @@ def run():
         print(f"平仓: {len(closed_log)}  W{wins}/L{losses}  "
               f"sum=${total:+.2f}  avg=${avg:+.2f}")
     print(f"开仓次数: {open_count}")
+    print(f"熔断次数: {breaker_count}")
     
     bot.close()
 
