@@ -23,6 +23,14 @@ python3 strategy_v4.py
 
 会打开浏览器窗口（headless=False），可实时观看交易过程。
 
+## 界面截图
+
+| 画面 | 截图 |
+|------|------|
+| 模拟账户主界面（盘面 + 账户） | ![主界面](docs/screenshots/01_main.png) |
+| 持有多单（EUR/USD long） | ![持仓多单](docs/screenshots/02_position_long.png) |
+| 同时持有多/空双仓位 | ![双仓位](docs/screenshots/03_two_positions.png) |
+
 ## 文件结构
 
 ```
