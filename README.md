@@ -1,57 +1,36 @@
-# FX 简单! 自动交易机器人 (fx-simple-trading-bot)
+# Bilibili 模拟交易游戏自动化仓库
 
-针对 **B 站玩具小游戏「FX 简单!」**（[bilibili.com/toy/fx-simple](https://www.bilibili.com/toy/fx-simple/index.html)，模拟账户模式）编写的自动化交易机器人。
+两个 bilibili 玩具交易游戏的自动化机器人（Playwright + Python），全部实验记录在案。
 
-> ⚠️ 这是游戏，不提供真实交易。仅供学习 Playwright 自动化与量化交易思路，请勿用于真实外汇市场。
+## 📁 目录
 
-## 玩法
-
-- 只交易 **EUR/USD** 一个货币对
-- 疯狂高频持仓：最多同时 5 个仓位
-- 每笔保证金 $500，杠杆 20x（名义 $10,000）
-- 止盈 +1%（快速落袋）
-- 时间兜底：持仓 **15 秒**未盈利即平仓（实测比 10s/30s 均衡）
-- 无止损（游戏允许死扛，靠时间兜底控制）
-
-## 快速上手
-
-```bash
-pip install playwright
-playwright install chromium
-python3 strategy_v4.py
-```
-
-会打开浏览器窗口（headless=False），可实时观看交易过程。
-
-## 界面截图
-
-| 画面 | 截图 |
-|------|------|
-| 模拟账户主界面（盘面 + 账户） | ![主界面](docs/screenshots/01_main.png) |
-| 持有多单（EUR/USD long） | ![持仓多单](docs/screenshots/02_position_long.png) |
-| 同时持有多/空双仓位 | ![双仓位](docs/screenshots/03_two_positions.png) |
-
-## 文件结构
-
-```
-bot.py          # FXBot 类：浏览器控制 + localStorage 事件钩子
-fx_lib.py       # 核心交易函数（开仓/平仓/动量/蜡烛）
-strategy_v4.py  # 主策略（15s 时间兜底，默认参数）
-EXPERIMENTS.md  # 全部测试记录（策略迭代历史）
-verify_base.py  # 基函数验证测试
-```
-
-## 测试结果（模拟账户，3 分钟/次）
-
-| 策略 | 盈亏 | 备注 |
+| 目录 | 游戏 | 状态 |
 |------|------|------|
-| 纯 15s 时间兜底 | +3.72% / +5.59% | 两次平均 +4.66% ✅ |
-| 纯 30s 时间兜底 | +5.42% | 胜率 86%，均笔最大 |
-| 总浮亏熔断 3% | +0.99% | 防拖死但连坐赚钱仓 |
-| 动量反转平仓 | +1.09% | 3 根 K 线动量太噪音 |
+| [`fx_simple/`](fx_simple/README.md) | **FX 简单!** — 外汇模拟盘（EUR/USD 等 7 对） | ✅ 可跑 |
+| [`bilinance/`](bilinance/README.md) | **BILINANCE** — 虚拟现货/合约交易（BTC/ETH 等 12 币） | ✅ 可跑 |
 
-详见 `EXPERIMENTS.md`。
+## 🎮 两个游戏的共同点（逆向结论）
 
-## 免责声明
+- **行情都是本地随机游走模拟**，无后端 API，1 秒 1 tick（已抓包 + 源码证实）
+- 账户状态存 localStorage，交易是纯前端逻辑
+- 自动化方案：Playwright 定位 iframe → 读 localStorage 状态 → DOM 操作下单
+- **本质是随机数游戏**：策略赚不赚 ≈ 行情机制 + 运气，无真实数据可挖
 
-本项目仅用于 B 站「FX 简单!」模拟数据的自动化玩法研究。市场有风险，任何策略都不能保证盈利。
+## 📊 策略结果对比
+
+| 游戏 | 最优策略 | 结果 |
+|------|---------|------|
+| FX 简单 | 15s 时间兜底 + TP1%（8 轮实验选优） | +3.7% ~ +5.6%/轮 |
+| BILINANCE | 新闻冲击跟随（检测单秒跳变>1%） | +11% ~ +19%/轮 |
+
+> BILINANCE 的新闻冲击（每 90s 一条，目标币 8 秒走 5-14%）是唯一像样的 alpha，
+> 但本质仍是跟随机事件下注，放大仓位 = 赌博。
+
+## 🛠 框架复用
+
+- 两套 bot 各自独立（`fx_simple/bot.py` / `bilinance/bot.py`），结构一致
+- 交易函数库、探索脚本、实验文档齐全，可作为 Playwright 自动化网站的参考实现
+
+## ⚠️ 免责声明
+
+纯模拟数据 + 本地随机行情，仅供自动化/逆向学习，不构成任何交易建议。
