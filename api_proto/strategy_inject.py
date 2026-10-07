@@ -42,9 +42,6 @@ SNAPSHOT_JS = r"""() => {
 
 OPEN_JS = r"""(m) => {
     const g = window.__game;
-    const st = g.getState();
-    st.margin = m.margin;
-    st.leverage = m.leverage;
     const ret = g.openPosition(m.side);
     if (!ret) return null;
     return {id: ret.id, entry: ret.entry, side: ret.side};
@@ -82,7 +79,7 @@ def pnl_pct(pos, price):
 
 def main():
     bot = FXBot(headless=False)
-    bot.reset()
+    # 不开 reset(): 每次启动都是全新干净账户($10000/0仓), reset 的 page.reload 反而引发 NaN 中间态
 
     DURATION = 180
     print("=" * 60)
