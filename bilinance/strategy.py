@@ -14,8 +14,8 @@ from lib import fut_open, fut_close, fut_positions
 PAIR = 'BTCUSDT'
 LEV = 10
 MARGIN = 50
-TAKE_PROFIT_PCT = 0.01    # 价格 +1% 平
-TIME_LIMIT_S = 15         # 时间兜底
+TAKE_PROFIT_PCT = 0.004   # 价格 +0.4% 平
+TIME_LIMIT_S = 6          # 时间兜底 6s
 MOMENTUM_N = 3            # 动量采样数
 MAX_POSITIONS = 3
 SCAN_S = 0.5              # 扫描间隔
