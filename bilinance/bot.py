@@ -103,11 +103,11 @@ class BILBot:
         """行情表全部价格 {BTCUSDT: price}"""
         return self.frame.evaluate("""() => {
             const out = {};
-            document.querySelectorAll('.mkt-table tbody tr').forEach(r => {
+            document.querySelectorAll('.mkt-row').forEach(r => {
                 const sym = r.dataset?.sym;
-                const tds = r.querySelectorAll('td');
-                if (sym && tds.length > 1) {
-                    const v = parseFloat((tds[1].textContent || '').replace(/,/g, ''));
+                const p = r.querySelector('.mkt-price');
+                if (sym && p) {
+                    const v = parseFloat((p.textContent || '').replace(/,/g, ''));
                     if (Number.isFinite(v)) out[sym] = v;
                 }
             });
